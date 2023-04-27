@@ -28,27 +28,55 @@ router.get("/",asyncHandler(
 router.get("/search/:searchTerm", asyncHandler(
   async (req, res) => {
     const searchRegex = new RegExp(req.params.searchTerm, 'i');
-    const books = await BookModel.find({name: {$regex:searchRegex}});
+    const books = await BookModel.find({author: {$regex:searchRegex}})
     res.send(books);
   }
 ))
 
-router.get("/tags", (req, res) => {
-    res.send(sample_tags);
-  })
-  
-router.get("/tag/:tagName", (req, res) => {
-    const tagName = req.params.tagName;
-    const books = sample_books
-    .filter(book => book.tags?.includes(tagName));
-    res.send(books);
-  })
+router.get("/tags", asyncHandler(
+  async (req, res) => {
+    const tags = await BookModel.aggregate([
+      {
+        $unwind:'$tags'
+      },
+      {
+        $group:{
+          _id: '$tags',
+          count: {$sum: 1}
+        }
+      },
+      {
+        $project:{
+          _id: 0,
+          name:'$_id',
+          count: '$count'
+        }
+      }
+    ]).sort({count: -1});
 
-router.get("/:bookId", (req, res) => {
-    const bookId = req.params.bookId;
-    const book = sample_books.find(book => book.id == bookId);
+    const all = {
+      name : 'All',
+      count: await BookModel.countDocuments()
+    }
+
+    tags.unshift(all);
+    res.send(tags);
+  }
+))
+  
+router.get("/tag/:tagName",asyncHandler(
+  async (req, res) => {
+    const books = await BookModel.find({tags: req.params.tagName})
+    res.send(books);
+  }
+))
+
+router.get("/:bookId", asyncHandler(
+  async (req, res) => {
+    const book = await BookModel.findById(req.params.bookId);
     res.send(book);
-  })
+  }
+))
 
 export default router;
   
